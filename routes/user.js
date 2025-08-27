@@ -8,7 +8,7 @@ const jwt = require("jsonwebtoken");
 
 
 userRouter.post("/signup", async function (req, res) {
-    const requiredBody = z.object({ 
+    const requiredBody = z.object({
         email: z.string().min(3).max(50).email(),
         password: z.string().min(6).max(100).refine(function (val) {
             return /[A-Z]/.test(val);
@@ -66,10 +66,55 @@ userRouter.post("/signup", async function (req, res) {
 
 })
 
-userRouter.post("/signin", function (req, res) {
-    res.json({
-        message: "Signin endpoint"
-    })
+userRouter.post("/signin", async function (req, res) {
+    try {
+        const requiredBody = z.object({
+            email: z.string().min(3).max(50).email(),
+            password: z.string().min(6)
+        })
+
+        const parsedDataWithSuccess = requiredBody.safeParse(req.body);
+
+        if (!parsedDataWithSuccess.success) {
+            res.status(400).json({
+                message: "Incorrect Format",
+                error: parsedDataWithSuccess.error
+            })
+            return
+        }
+
+        const { email, password } = req.body;
+
+        const user = await userModel.findOne({
+            email: email
+        })
+
+        if (!user) {
+            res.status(403).json({
+                message: "User does not exist "
+            })
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        if (passwordMatch) {
+            const token = jwt.sign({
+                id: user._id.toString()
+            }, JWT_USER_SECRET);
+
+            res.json({
+                token: token
+            })
+        } else {
+            res.status(403).json({
+                message: "Incorrect credentials"
+            })
+        }
+    } catch (err) {
+        console.log("Signin error:", err);
+        res.status(500).json({
+            message: "Internal Server Error"
+        })
+    }
 })
 
 userRouter.get("/purchases", function (req, res) {// all courses have i purchased
@@ -80,5 +125,5 @@ userRouter.get("/purchases", function (req, res) {// all courses have i purchase
 
 
 module.exports = {
-    userRouter : userRouter
+    userRouter: userRouter
 }
