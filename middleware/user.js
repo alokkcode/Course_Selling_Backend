@@ -2,21 +2,31 @@ const jwt = require("jsonwebtoken");
 const { JWT_USER_SECRET } = require("../config");
 
 function userMiddleware(req, res, next) {
-    const token = req.headers.token;
+    try {
+        const token = req.headers.token;
 
-    const decoded = jwt.verify(token, JWT_USER_SECRET);
+        if (!token) {
+            res.status(401).json({
+                message: "Token missing. Please sign in first."
+            });
+            return
+        }
 
-    if(decoded) {
+        const decoded = jwt.verify(token, JWT_USER_SECRET);
+
         req.userId = decoded.id;
-        next() 
-    } else {
-        res.status(403).json({
-            message : "You are not signed in"
-        })
+        next()
+        
+    } catch (err) {
+        console.error("JWT error:", err.message);
+        return res.status(403).json({
+            message: "Invalid or expired token. Please login again."
+        });
     }
-
 }
 
+
+
 module.exports = {
-    userMiddleware : userMiddleware
+    userMiddleware: userMiddleware
 }

@@ -3,17 +3,27 @@ const { JWT_ADMIN_SECRET } = require("../config");
 
 
 function adminMiddleware(req, res, next) {
-    const token = req.headers.token;
 
-    const decoded = jwt.verify(token, JWT_ADMIN_SECRET);
+    try {
+        const token = req.headers.token;
 
-    if (decoded) {
-        req.userId = decoded.id; 
+        if (!token) {
+            res.status(401).json({
+                message: "Token missing. Please sign in first."
+            });
+            return
+        }
+
+        const decoded = jwt.verify(token, JWT_ADMIN_SECRET);
+
+        req.userId = decoded.id;
         next()
-    } else {
-        res.status(403).json({
-            message: "You are not signed in"
-        })
+
+    } catch (err) {
+        console.error("JWT error:", err.message);
+        return res.status(403).json({
+            message: "Invalid or expired token. Please login again."
+        });
     }
 
 }
