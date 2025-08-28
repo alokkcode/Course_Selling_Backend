@@ -1,13 +1,14 @@
 const { Router } = require("express");
 const adminRouter = Router();
 const { z } = require("zod");
-const { adminModel } = require("../db");
+const { adminModel, courseModel } = require("../db");
 const { JWT_ADMIN_SECRET } = require("../config");
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken");
+const { adminMiddleware } = require("../middleware/admin");
 
-adminRouter.post("/signup",async function (req, res) {
-    const requiredBody = z.object({ 
+adminRouter.post("/signup", async function (req, res) {
+    const requiredBody = z.object({
         email: z.string().min(3).max(50).email(),
         password: z.string().min(6).max(100).refine(function (val) {
             return /[A-Z]/.test(val);
@@ -64,7 +65,7 @@ adminRouter.post("/signup",async function (req, res) {
     }
 })
 
-adminRouter.post("/signin",async function (req, res) {
+adminRouter.post("/signin", async function (req, res) {
     try {
         const requiredBody = z.object({
             email: z.string().min(3).max(50).email(),
@@ -91,6 +92,7 @@ adminRouter.post("/signin",async function (req, res) {
             res.status(403).json({
                 message: "Admin does not exist "
             })
+            return
         }
 
         const passwordMatch = await bcrypt.compare(password, admin.password);
@@ -118,27 +120,65 @@ adminRouter.post("/signin",async function (req, res) {
 })
 
 
-adminRouter.post("/course", function (req, res) { // to create a course by admins
+adminRouter.post("/course", adminMiddleware, async function (req, res) { // to create a course by admins
+    const adminId = req.userId;
+
+    const { title, description, price, imageUrl } = req.body;
+
+    const course = await courseModel.create({
+        title: title,
+        description: description,
+        price: price,
+        imageUrl: imageUrl,
+        creatorId: adminId
+    })
+
     res.json({
-        message: "Course Created by Admin"
+        message: "Course Created ",
+        courseId: course._id
     })
 })
 
 
-adminRouter.put("/course", function (req, res) { // to change say , name of course by admins
+adminRouter.put("/course", adminMiddleware, async function (req, res) { // to update say , name of course by admins of their respective courses
+    const adminId = req.userId;
+    const { title, description, price, imageUrl, courseId } = req.body;
+
+    const updatedCourse = await courseModel.updateOne({
+        _id: courseId,
+        creatorId: adminId
+    }, {
+        title: title,
+        description: description,
+        price: price,
+        imageUrl: imageUrl
+    });
+
+    if (updatedCourse.matchedCount === 0) { // matchedCount will be 0 (no document matched filter)
+        return res.status(403).json({
+            message: "Not authorized to update this course or course not found"
+        });
+    }
     res.json({
-        message: "Course Name changed"
+        message: "Course Updated",
+        courseId: updatedCourse._id
     })
 })
 
 
-adminRouter.get("/course/bulk", function (req, res) { // admin can get all their courses
+adminRouter.get("/course/bulk", adminMiddleware, async function (req, res) { // admin can get all their courses
+    const adminId = req.userId;
+    const courses = await courseModel.find({
+        creatorId: adminId
+    })
+
     res.json({
-        message: "Course Created by Admin"
+        message: "Here are your courses ",
+        courses: courses
     })
 })
 
 
 module.exports = {
-    adminRouter : adminRouter
+    adminRouter: adminRouter
 }
